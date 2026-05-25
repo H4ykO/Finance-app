@@ -192,6 +192,10 @@ class HistoryView:
     # -----------------------------------------------------------------------
     def _reload_table(self) -> None:
         """Recarrega a tabela com base nos filtros atuais."""
+        # Limite de exibição: carregar e renderizar centenas de linhas de
+        # uma vez deixa a tela lenta. Mostramos as mais recentes (a busca
+        # e os filtros permitem achar transações específicas mais antigas).
+        DISPLAY_LIMIT = 150
         with get_session() as s:
             results = tx_service.search_transactions(
                 session=s,
@@ -199,6 +203,7 @@ class HistoryView:
                 text=self.filter_text or None,
                 kind=self.filter_kind,
                 category_id=self.filter_category_id,
+                limit=DISPLAY_LIMIT,
             )
             # Detacha para uso fora da sessão
             rows_data = [
@@ -213,7 +218,13 @@ class HistoryView:
                 for t in results
             ]
 
-        self.status_text.value = f"{len(rows_data)} transaction(s) found"
+        if len(rows_data) >= DISPLAY_LIMIT:
+            self.status_text.value = (
+                f"Showing the {DISPLAY_LIMIT} most recent — use search or "
+                f"filters to find older transactions"
+            )
+        else:
+            self.status_text.value = f"{len(rows_data)} transaction(s) found"
 
         # Limpa e reconstrói as linhas
         self.table_container.controls.clear()

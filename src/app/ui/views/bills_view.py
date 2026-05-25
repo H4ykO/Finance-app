@@ -34,8 +34,14 @@ class BillsView:
         self.page = page
         self.user = user
 
+        # Mês atualmente visível (começa no mês de hoje). O seletor de mês
+        # permite navegar para frente/trás. Guardamos sempre o dia 1.
+        self.viewing_month = date.today().replace(day=1)
+
         self.list_container = ft.Column(spacing=Spacing.SM, scroll=ft.ScrollMode.AUTO, expand=True)
         self.summary_row = ft.Row(spacing=Spacing.MD)
+        self.month_label = ft.Text("", size=Font.SIZE_BODY, weight=Font.SEMIBOLD,
+                                   color=Colors.TEXT_PRIMARY)
 
     def build(self) -> ft.Control:
         header = ft.Row(
@@ -61,10 +67,32 @@ class BillsView:
 
         self._reload()
 
+        # Seletor de mês: ‹ Junho 2026 ›
+        month_selector = ft.Row(
+            [
+                ft.IconButton(
+                    icon=ft.Icons.CHEVRON_LEFT, icon_color=Colors.TEXT_PRIMARY,
+                    tooltip="Previous month",
+                    on_click=lambda e: self._change_month(-1),
+                ),
+                ft.Container(content=self.month_label, padding=ft.padding.symmetric(horizontal=Spacing.MD)),
+                ft.IconButton(
+                    icon=ft.Icons.CHEVRON_RIGHT, icon_color=Colors.TEXT_PRIMARY,
+                    tooltip="Next month",
+                    on_click=lambda e: self._change_month(1),
+                ),
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=0,
+        )
+
         return ft.Container(
             content=ft.Column(
                 [
                     header,
+                    ft.Container(height=Spacing.SM),
+                    month_selector,
                     ft.Container(height=Spacing.SM),
                     self.summary_row,
                     ft.Container(height=Spacing.SM),
@@ -81,14 +109,29 @@ class BillsView:
             bgcolor=Colors.BG_APP,
         )
 
+    def _change_month(self, delta: int):
+        """Navega entre meses no seletor (delta = -1 anterior, +1 próximo)."""
+        from dateutil.relativedelta import relativedelta
+        self.viewing_month = self.viewing_month + relativedelta(months=delta)
+        self._reload()
+        if self.list_container.page is not None:
+            self.month_label.update()
+            self.summary_row.update()
+            self.list_container.update()
+
     # -----------------------------------------------------------------------
     # Recarregar lista + resumo
     # -----------------------------------------------------------------------
     def _reload(self):
         today = date.today()
+        month = self.viewing_month  # mês visível (controlado pelo seletor)
+
+        # Atualiza o rótulo do seletor (ex: "June 2026")
+        self.month_label.value = month.strftime("%B %Y")
+
         with get_session() as s:
-            # Item 4: só as contas que vencem no MÊS VIGENTE.
-            all_bills = bill_service.list_bills(s, self.user.id, month=today)
+            # Mostra as contas que vencem no mês VISÍVEL (seletor de mês).
+            all_bills = bill_service.list_bills(s, self.user.id, month=month)
             bills_data = [
                 {
                     "id": b.id,
@@ -105,6 +148,7 @@ class BillsView:
         # Calcula totais para o resumo
         total_pending = sum((b["amount"] for b in bills_data if not b["is_paid"]), Decimal("0"))
         total_paid = sum((b["amount"] for b in bills_data if b["is_paid"]), Decimal("0"))
+        # "Overdue" só faz sentido para datas já passadas (relativo a hoje)
         overdue = sum(
             (b["amount"] for b in bills_data
              if not b["is_paid"] and b["due_date"] < today),
