@@ -1,0 +1,22 @@
+# === Fase 1 — Fundação ===
+
+# ORM para falar com SQLite (e qualquer outro banco no futuro)
+SQLAlchemy>=2.0,<3.0
+
+# Hash de senha seguro (bcrypt direto, sem passlib — passlib está mal mantida)
+bcrypt>=4.1,<5.0
+
+# Carregamento de variáveis de ambiente a partir de .env
+python-dotenv>=1.0,<2.0
+
+# === Fase 2 (UI) ===
+# Fixado em 0.28.3: última versão da série antiga (a 0.80+/1.0 exige
+# migração manual com breaking changes). 0.28.3 tem build funcional.
+flet==0.28.3
+
+# === Fase 5 (bot do Telegram) ===
+# Biblioteca oficial e madura para bots do Telegram.
+python-telegram-bot>=21,<22
+
+# === Manipulação de datas (usado em vários lugares) ===
+python-dateutil>=2.8,<3.0

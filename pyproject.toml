@@ -1,0 +1,39 @@
+[project]
+name = "finance_app"
+version = "1.0.0"
+description = "Personal finance tracker"
+# Dependências do app. O flet build instala estas no bundle.
+dependencies = [
+    "flet==0.28.3",
+    "SQLAlchemy>=2.0,<3.0",
+    "bcrypt>=4.1,<5.0",
+    "python-dotenv>=1.0,<2.0",
+    "python-telegram-bot>=21,<22",
+    "python-dateutil>=2.8,<3.0",
+]
+
+[tool.flet]
+# Identificador único do app (padrão reverse-DNS).
+org = "com.financeapp"
+# Nome de exibição do produto (aparece no Finder, Launchpad).
+product = "Finance App"
+# Empresa/autor (aparece nos metadados do bundle).
+company = "Finance App"
+# Copyright.
+copyright = "Copyright (C) 2026"
+
+[tool.flet.app]
+# O código do app fica na pasta src/ (padrão do flet build).
+path = "src"
+
+[tool.flet.macos]
+# Constrói para a arquitetura do seu Mac. 'target_arch' (nome novo a
+# partir da 0.27). arm64 para Apple Silicon (M1/M2/M3...).
+target_arch = "arm64"
+
+# Entitlements (permissões do macOS). O bot do Telegram precisa de
+# acesso à rede como cliente — essencial, senão o bot não conecta.
+entitlement."com.apple.security.app-sandbox" = false
+entitlement."com.apple.security.network.client" = true
+entitlement."com.apple.security.network.server" = true
+entitlement."com.apple.security.files.user-selected.read-write" = true
