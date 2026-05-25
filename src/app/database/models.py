@@ -52,6 +52,10 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
+    # Hash do PIN de acesso rápido (opcional). Se definido, o usuário pode
+    # reabrir o app com o PIN em vez da senha completa, até o PC reiniciar.
+    pin_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Relacionamento: um usuário tem N transações

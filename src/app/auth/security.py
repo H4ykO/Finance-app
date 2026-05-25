@@ -86,3 +86,19 @@ def verify_password(plain_password: str, password_hash: str) -> bool:
     except (ValueError, TypeError):
         # Hash mal-formatado: tratar como senha inválida silenciosamente
         return False
+
+
+# --- PIN de acesso rápido ---
+# O PIN reusa o mesmo mecanismo seguro da senha (bcrypt). Tecnicamente é
+# tratado como uma "senha curta". Mantemos funções com nome próprio para
+# o código ficar legível e para permitir endurecer o PIN no futuro
+# (ex: exigir mínimo de dígitos) sem mexer na senha.
+
+def hash_pin(plain_pin: str) -> str:
+    """Gera o hash bcrypt de um PIN."""
+    return hash_password(plain_pin)
+
+
+def verify_pin(plain_pin: str, pin_hash: str) -> bool:
+    """Compara um PIN com o hash armazenado (tempo constante)."""
+    return verify_password(plain_pin, pin_hash)

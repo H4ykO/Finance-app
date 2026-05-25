@@ -135,6 +135,9 @@ def _run_light_migrations() -> None:
         "bills": [
             ("is_recurring", "BOOLEAN NOT NULL DEFAULT 0"),
         ],
+        "users": [
+            ("pin_hash", "VARCHAR(255)"),
+        ],
     }
 
     with engine.begin() as conn:

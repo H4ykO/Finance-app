@@ -16,8 +16,9 @@ from typing import Optional
 
 import flet as ft
 
-from app.database.connection import ensure_seed_data, needs_initial_setup
+from app.database.connection import ensure_seed_data, needs_initial_setup, get_session
 from app.database.models import User
+from app.services import user_service, session_service
 from app.ui.components.sidebar import build_sidebar
 from app.ui.theme import Colors
 from app.ui.views.analytics_view import AnalyticsView
@@ -29,6 +30,7 @@ from app.ui.views.home_view import HomeView
 from app.ui.views.login_view import build_login_view
 from app.ui.views.signup_view import build_signup_view
 from app.ui.views.settings_view import SettingsView
+from app.ui.views.pin_view import build_pin_view
 
 
 class FinanceApp:
@@ -45,12 +47,23 @@ class FinanceApp:
     def start(self) -> None:
         """Configura a página e exibe a primeira tela apropriada."""
         self._configure_page()
-        # Garante que as categorias padrão existem (essencial no .app,
-        # onde não se roda o script init_db pelo terminal).
         ensure_seed_data()
-        # Primeira abertura (sem usuário) -> cadastro. Senão -> login.
+
+        # Primeira abertura de todas (sem usuário) -> cadastro.
         if needs_initial_setup():
             self._show_signup()
+            return
+
+        # Se o usuário já tem PIN E a sessão de boot continua válida
+        # (o PC não reiniciou desde o último login completo), pede só o PIN.
+        # Caso contrário, exige o login completo (e-mail + senha).
+        with get_session() as s:
+            user = user_service.get_single_user(s)
+            user_id = user.id if user else None
+            tem_pin = user_service.has_pin(s, user_id) if user_id else False
+
+        if user_id and tem_pin and session_service.is_session_valid(user_id):
+            self._show_pin()
         else:
             self._show_login()
 
@@ -183,7 +196,87 @@ class FinanceApp:
     def _on_login_success(self, user: User) -> None:
         self.current_user = user
         self.current_route = "home"
+        # Marca esta sessão de boot como autenticada — habilita o PIN nas
+        # próximas aberturas até o PC reiniciar.
+        session_service.mark_authenticated(user.id)
+        # Se o usuário ainda não configurou um PIN, oferece criar um agora.
+        with get_session() as s:
+            tem_pin = user_service.has_pin(s, user.id)
+        if not tem_pin:
+            self._offer_create_pin()
+        else:
+            self._show_main_layout()
+
+    def _show_pin(self) -> None:
+        """Mostra a tela de PIN (acesso rápido)."""
+        self.page.controls.clear()
+        pin_view = build_pin_view(
+            self.page,
+            on_pin_success=self._on_pin_success,
+            on_use_password=self._show_login,  # "esqueci/usar senha" cai no login
+        )
+        self.page.add(pin_view)
+        self.page.update()
+
+    def _on_pin_success(self) -> None:
+        """PIN correto: carrega o usuário e entra no app."""
+        with get_session() as s:
+            user = user_service.get_single_user(s)
+            s.expunge(user)
+        self.current_user = user
+        self.current_route = "home"
         self._show_main_layout()
+
+    def _offer_create_pin(self) -> None:
+        """
+        Após o primeiro login, pergunta se o usuário quer criar um PIN de
+        acesso rápido. Ele pode pular e seguir só com senha.
+        """
+        pin_field = ft.TextField(
+            label="Choose a PIN (4–8 digits)",
+            password=True, can_reveal_password=True,
+            keyboard_type=ft.KeyboardType.NUMBER,
+            border_color=Colors.BORDER,
+        )
+        error_text = ft.Text("", color=Colors.DANGER, size=12, visible=False)
+
+        def save_pin(e):
+            pin = (pin_field.value or "").strip()
+            if not (pin.isdigit() and 4 <= len(pin) <= 8):
+                error_text.value = "PIN must be 4 to 8 digits."
+                error_text.visible = True
+                error_text.update()
+                return
+            with get_session() as s:
+                user_service.set_pin(s, self.current_user.id, pin)
+            self.page.close(dialog)
+            self._show_main_layout()
+
+        def skip(e):
+            self.page.close(dialog)
+            self._show_main_layout()
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Set up quick access?"),
+            content=ft.Container(
+                content=ft.Column([
+                    ft.Text("Create a PIN to reopen the app faster. You'll still "
+                            "need your password after restarting your computer.",
+                            size=13, color=Colors.TEXT_SECONDARY),
+                    pin_field, error_text,
+                ], tight=True, spacing=12, width=360),
+            ),
+            actions=[
+                ft.TextButton(content=ft.Text("Skip", color=Colors.TEXT_SECONDARY), on_click=skip),
+                ft.TextButton(content=ft.Text("Save PIN", color=Colors.ACCENT,
+                              weight=ft.FontWeight.W_600), on_click=save_pin),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        # Precisa estar na página antes de abrir o dialog
+        self.page.add(ft.Container())
+        self.page.open(dialog)
 
     def _on_navigate(self, route: str) -> None:
         if route == self.current_route:
@@ -194,4 +287,6 @@ class FinanceApp:
     def _on_logout(self) -> None:
         self.current_user = None
         self.current_route = "home"  # reseta para o default
+        # Logout explícito invalida a sessão de PIN — exige senha de novo.
+        session_service.clear_session()
         self._show_login()

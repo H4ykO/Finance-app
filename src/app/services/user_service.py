@@ -14,10 +14,12 @@ Vantagens:
 """
 
 
+from typing import Optional
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.auth.security import hash_password, verify_password
+from app.auth.security import hash_password, verify_password, hash_pin, verify_pin
 from app.database.models import User
 
 
@@ -109,3 +111,41 @@ def authenticate(session: Session, email: str, password: str) -> User:
     return user
 
 
+
+
+def set_pin(session: Session, user_id: int, pin: str) -> None:
+    """
+    Define (ou redefine) o PIN de acesso rápido do usuário.
+
+    O PIN é guardado como hash bcrypt, nunca em texto puro.
+    """
+    user = session.get(User, user_id)
+    if user is None:
+        raise ValueError("Usuário não encontrado.")
+    user.pin_hash = hash_pin(pin)
+    session.commit()
+
+
+def has_pin(session: Session, user_id: int) -> bool:
+    """True se o usuário já configurou um PIN."""
+    user = session.get(User, user_id)
+    return bool(user and user.pin_hash)
+
+
+def verify_user_pin(session: Session, user_id: int, pin: str) -> bool:
+    """Verifica se o PIN informado bate com o hash guardado."""
+    user = session.get(User, user_id)
+    if user is None or not user.pin_hash:
+        return False
+    return verify_pin(pin, user.pin_hash)
+
+
+def get_single_user(session: Session) -> Optional[User]:
+    """
+    Retorna o (único) usuário do app, se existir.
+
+    O app é de uso pessoal — há apenas uma conta. Útil para o fluxo de
+    PIN, que precisa saber de qual usuário verificar o PIN sem pedir
+    o e-mail de novo.
+    """
+    return session.scalars(select(User).limit(1)).first()
