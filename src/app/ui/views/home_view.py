@@ -22,7 +22,8 @@ from app.database.models import User
 from app.services import bill_service
 from app.services import income_service
 from app.services import transaction_service as tx_service
-from app.ui.theme import Colors, Font, Radius, Spacing, format_brl
+from app.services import preferences_service
+from app.ui.theme import Colors, Font, Radius, Spacing, format_brl_masked
 
 
 class HomeView:
@@ -30,6 +31,9 @@ class HomeView:
         self.page = page
         self.user = user
         self.on_navigate = on_navigate
+        self.root = ft.Container(
+            padding=ft.padding.all(Spacing.XL), expand=True, bgcolor=Colors.BG_APP,
+        )
 
     def build(self) -> ft.Control:
         today = date.today()
@@ -61,21 +65,36 @@ class HomeView:
         total_inc = income_principal + sum((t.amount for t in income_txs), Decimal("0"))
         saldo = total_inc - total_exp
 
-        # --- Saudação ---
+        hidden = preferences_service.get_hide_balances()
+
+        # --- Saudação (com botão de ocultar valores) ---
         greeting = f"Hello, {self.user.name.split()[0]}"
         subtitle = today.strftime("Today is %m/%d/%Y")
 
-        header = ft.Column([
-            ft.Text(greeting, size=Font.SIZE_HUGE, weight=Font.BOLD, color=Colors.TEXT_PRIMARY),
-            ft.Text(subtitle, size=Font.SIZE_BODY, color=Colors.TEXT_SECONDARY),
-        ], spacing=Spacing.XS)
+        eye_icon = ft.Icons.VISIBILITY_OFF_OUTLINED if hidden else ft.Icons.VISIBILITY_OUTLINED
+        eye_button = ft.IconButton(
+            icon=eye_icon,
+            icon_color=Colors.TEXT_SECONDARY,
+            tooltip="Show values" if hidden else "Hide values",
+            on_click=lambda e: self._toggle_hidden(),
+        )
+
+        header = ft.Row([
+            ft.Column([
+                ft.Text(greeting, size=Font.SIZE_HUGE, weight=Font.BOLD, color=Colors.TEXT_PRIMARY),
+                ft.Text(subtitle, size=Font.SIZE_BODY, color=Colors.TEXT_SECONDARY),
+            ], spacing=Spacing.XS),
+            ft.Container(expand=True),
+            eye_button,
+        ], vertical_alignment=ft.CrossAxisAlignment.START)
 
         # --- Resumo rápido: 3 mini-cards ---
         summary = ft.Row([
-            self._summary_card("Month balance", format_brl(saldo),
+            self._summary_card("Month balance", format_brl_masked(saldo, hidden),
                                Colors.SUCCESS if saldo >= 0 else Colors.DANGER),
-            self._summary_card("Month spending", format_brl(total_exp), Colors.TEXT_PRIMARY),
-            self._next_bill_card(next_bill_data, today),
+            self._summary_card("Month spending", format_brl_masked(total_exp, hidden),
+                               Colors.TEXT_PRIMARY),
+            self._next_bill_card(next_bill_data, today, hidden),
         ], spacing=Spacing.MD)
 
         # --- Shortcuts ---
@@ -88,17 +107,23 @@ class HomeView:
             self._shortcut("Categorys", ft.Icons.LABEL_OUTLINE, "categories"),
         ], spacing=Spacing.MD, wrap=True)
 
-        return ft.Container(
-            content=ft.Column([
-                header,
-                ft.Container(height=Spacing.LG),
-                summary,
-                ft.Container(height=Spacing.LG),
-                shortcuts_title,
-                shortcuts,
-            ], spacing=Spacing.MD, scroll=ft.ScrollMode.AUTO, expand=True),
-            padding=ft.padding.all(Spacing.XL), expand=True, bgcolor=Colors.BG_APP,
-        )
+        self.root.content = ft.Column([
+            header,
+            ft.Container(height=Spacing.LG),
+            summary,
+            ft.Container(height=Spacing.LG),
+            shortcuts_title,
+            shortcuts,
+        ], spacing=Spacing.MD, scroll=ft.ScrollMode.AUTO, expand=True)
+        return self.root
+
+    def _toggle_hidden(self) -> None:
+        """Alterna ocultar/mostrar valores e re-renderiza a home."""
+        novo = not preferences_service.get_hide_balances()
+        preferences_service.set_hide_balances(novo)
+        self.build()
+        if self.root.page is not None:
+            self.root.update()
 
     def _summary_card(self, label: str, value: str, color: str) -> ft.Control:
         return ft.Container(
@@ -110,14 +135,14 @@ class HomeView:
             border_radius=Radius.LG, padding=Spacing.LG, expand=True,
         )
 
-    def _next_bill_card(self, bill_data, today: date) -> ft.Control:
+    def _next_bill_card(self, bill_data, today: date, hidden: bool = False) -> ft.Control:
         if bill_data is None:
             value = "—"
             sub = "No pending bills"
             color = Colors.TEXT_TERTIARY
         else:
             desc, amount, due = bill_data
-            value = format_brl(amount)
+            value = format_brl_masked(amount, hidden)
             dias = (due - today).days
             if dias < 0:
                 sub = f"{desc} — overdue"

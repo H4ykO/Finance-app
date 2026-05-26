@@ -22,6 +22,7 @@ from app.database.connection import get_session
 from app.database.models import User
 from app.services.dashboard_service import build_dashboard
 from app.services import income_service
+from app.services import preferences_service
 from app.ui.components.charts import (
     build_monthly_expenses_chart,
     build_weekly_expenses_chart,
@@ -50,7 +51,8 @@ class DashboardView:
         with get_session() as session:
             data = build_dashboard(session, user_id=self.user.id)
 
-        header = self._build_header()
+        hidden = preferences_service.get_hide_balances()
+        header = self._build_header(hidden)
 
         dashboard_label = ft.Text(
             "Dashboard", size=Font.SIZE_BODY, color=Colors.TEXT_SECONDARY, weight=Font.MEDIUM,
@@ -63,20 +65,22 @@ class DashboardView:
                     amount=data.available.amount,
                     variation_percent=data.available.variation_percent,
                     positive_is_good=data.available.variation_is_positive_good,
+                    hidden=hidden,
                 ),
                 build_stat_card(
                     label=data.bills.label,
                     amount=data.bills.amount,
                     variation_percent=data.bills.variation_percent,
                     positive_is_good=data.bills.variation_is_positive_good,
+                    hidden=hidden,
                 ),
                 build_stat_card(
                     label=data.income.label,
                     amount=data.income.amount,
                     variation_percent=data.income.variation_percent,
                     positive_is_good=data.income.variation_is_positive_good,
-                    # NOVO: botão de editar só no card de Income
                     on_edit=self._open_income_dialog,
+                    hidden=hidden,
                 ),
             ],
             spacing=Spacing.MD,
@@ -197,15 +201,31 @@ class DashboardView:
     # -----------------------------------------------------------------------
     # Header
     # -----------------------------------------------------------------------
-    def _build_header(self) -> ft.Control:
+    def _build_header(self, hidden: bool) -> ft.Control:
+        eye_icon = ft.Icons.VISIBILITY_OFF_OUTLINED if hidden else ft.Icons.VISIBILITY_OUTLINED
+        eye_button = ft.IconButton(
+            icon=eye_icon,
+            icon_color=Colors.TEXT_SECONDARY,
+            tooltip="Show values" if hidden else "Hide values",
+            on_click=lambda e: self._toggle_hidden(),
+        )
         return ft.Row(
             [
                 ft.Text("Finances", size=Font.SIZE_TITLE, weight=Font.BOLD,
                         color=Colors.TEXT_PRIMARY),
                 ft.Container(expand=True),
+                eye_button,
             ],
             spacing=Spacing.SM, vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
+
+    def _toggle_hidden(self) -> None:
+        """Alterna ocultar/mostrar valores e re-renderiza o dashboard."""
+        novo = not preferences_service.get_hide_balances()
+        preferences_service.set_hide_balances(novo)
+        self.build()  # remonta com o novo estado
+        if self.root.page is not None:
+            self.root.update()
 
 
 # ---------------------------------------------------------------------------

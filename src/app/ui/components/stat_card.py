@@ -14,7 +14,7 @@ from typing import Callable, Optional
 
 import flet as ft
 
-from app.ui.theme import Colors, Font, Radius, Spacing, format_brl
+from app.ui.theme import Colors, Font, Radius, Spacing, format_brl_masked
 
 
 def build_stat_card(
@@ -23,6 +23,7 @@ def build_stat_card(
     variation_percent: Optional[float],
     positive_is_good: bool = True,
     on_edit: Optional[Callable[[], None]] = None,
+    hidden: bool = False,    # se True, mostra '••••••' no lugar do valor
 ) -> ft.Container:
     """
     Constrói um card de estatística.
@@ -47,6 +48,12 @@ def build_stat_card(
         is_positive_value = variation_percent >= 0
         is_good = is_positive_value if positive_is_good else not is_positive_value
         variation_color = Colors.SUCCESS if is_good else Colors.DANGER
+
+    # Com valores ocultos, escondemos também a variação (senão revelaria
+    # informação sobre os números).
+    if hidden:
+        variation_text = "•••"
+        variation_color = Colors.TEXT_TERTIARY
 
     # Linha do topo: label à esquerda e (opcional) botão de editar à direita
     top_row_controls: list[ft.Control] = [
@@ -75,7 +82,7 @@ def build_stat_card(
                 ),
                 ft.Container(
                     content=ft.Text(
-                        format_brl(amount),
+                        format_brl_masked(amount, hidden),
                         size=Font.SIZE_HUGE,
                         weight=Font.BOLD,
                         color=Colors.TEXT_PRIMARY,

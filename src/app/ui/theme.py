@@ -116,3 +116,17 @@ def format_brl(value: float | int) -> str:
     # Troca dupla via placeholder evita conflito entre as substituições
     formatted = formatted.replace(",", "_").replace(".", ",").replace("_", ".")
     return f"R$ {formatted}"
+
+
+# Máscara usada quando os valores de saldo estão ocultos (privacidade).
+HIDDEN_VALUE = "••••••"
+
+
+def format_brl_masked(value: float | int, hidden: bool) -> str:
+    """
+    Como format_brl, mas devolve uma máscara ('••••••') quando `hidden`
+    é True. Usado nos cards de saldo para o botão de ocultar valores.
+    """
+    if hidden:
+        return HIDDEN_VALUE
+    return format_brl(value)
