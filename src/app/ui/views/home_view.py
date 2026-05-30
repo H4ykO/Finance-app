@@ -23,6 +23,7 @@ from app.services import bill_service
 from app.services import income_service
 from app.services import transaction_service as tx_service
 from app.services import preferences_service
+from app.services import billing_cycle
 from app.ui.theme import Colors, Font, Radius, Spacing, format_brl_masked
 
 
@@ -39,9 +40,7 @@ class HomeView:
         today = date.today()
 
         # --- Coleta os números do resumo ---
-        first = today.replace(day=1)
-        next_month = (first + timedelta(days=32)).replace(day=1)
-        last = next_month - timedelta(days=1)
+        first, last = billing_cycle.month_bounds(today)
 
         with get_session() as s:
             expenses = tx_service.search_transactions(

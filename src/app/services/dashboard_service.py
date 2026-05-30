@@ -17,6 +17,7 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
 from app.database.models import Bill, Income
+from app.services import billing_cycle
 from app.services.transaction_service import (
     sum_expenses_in_period,
     sum_expenses_by_day,
@@ -69,20 +70,13 @@ def _percent_change(current: Decimal, previous: Decimal) -> Optional[float]:
 
 
 def _month_bounds(reference: date) -> tuple[date, date]:
-    """Retorna (primeiro_dia, ultimo_dia) do mês contendo `reference`."""
-    first = reference.replace(day=1)
-    # Truque: dia 28 + 4 dias entra no mês seguinte, depois voltamos
-    # ao dia 1 e tiramos 1 dia. Funciona para qualquer mês, incluindo fevereiro.
-    next_month = (first + timedelta(days=32)).replace(day=1)
-    last = next_month - timedelta(days=1)
-    return first, last
+    """Limites do mês financeiro (ciclo de fatura) — ver billing_cycle."""
+    return billing_cycle.month_bounds(reference)
 
 
 def _previous_month_bounds(reference: date) -> tuple[date, date]:
-    """Retorna (primeiro_dia, ultimo_dia) do MÊS ANTERIOR."""
-    first_this_month, _ = _month_bounds(reference)
-    last_prev_month = first_this_month - timedelta(days=1)
-    return _month_bounds(last_prev_month)
+    """Limites do mês financeiro anterior — ver billing_cycle."""
+    return billing_cycle.previous_month_bounds(reference)
 
 
 # ---------------------------------------------------------------------------

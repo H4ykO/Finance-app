@@ -24,14 +24,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database.models import Income
+from app.services import billing_cycle
 
 
 def _month_bounds(reference: date) -> tuple[date, date]:
-    """Primeiro e último dia do mês de `reference`."""
-    first = reference.replace(day=1)
-    next_month = (first + timedelta(days=32)).replace(day=1)
-    last = next_month - timedelta(days=1)
-    return first, last
+    """Limites do mês financeiro (ciclo de fatura) — ver billing_cycle."""
+    return billing_cycle.month_bounds(reference)
 
 
 def get_current_month_income(

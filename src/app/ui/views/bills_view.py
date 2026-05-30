@@ -23,6 +23,7 @@ import flet as ft
 from app.database.connection import get_session
 from app.database.models import User
 from app.services import bill_service
+from app.services import billing_cycle
 from app.ui.components.dialogs import confirm_dialog
 from app.ui.theme import Colors, Font, Radius, Spacing, format_brl
 
@@ -36,7 +37,7 @@ class BillsView:
 
         # Mês atualmente visível (começa no mês de hoje). O seletor de mês
         # permite navegar para frente/trás. Guardamos sempre o dia 1.
-        self.viewing_month = date.today().replace(day=1)
+        self.viewing_month = billing_cycle.financial_month_of(date.today())
 
         self.list_container = ft.Column(spacing=Spacing.SM, scroll=ft.ScrollMode.AUTO, expand=True)
         self.summary_row = ft.Row(spacing=Spacing.MD)
@@ -110,9 +111,8 @@ class BillsView:
         )
 
     def _change_month(self, delta: int):
-        """Navega entre meses no seletor (delta = -1 anterior, +1 próximo)."""
-        from dateutil.relativedelta import relativedelta
-        self.viewing_month = self.viewing_month + relativedelta(months=delta)
+        """Navega entre meses financeiros no seletor (delta -1/+1)."""
+        self.viewing_month = billing_cycle.add_months(self.viewing_month, delta)
         self._reload()
         if self.list_container.page is not None:
             self.month_label.update()

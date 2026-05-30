@@ -162,10 +162,8 @@ def handle_balance(telegram_user_id: int, today: Optional[date] = None) -> str:
     if app_user_id is None:
         return "⚠️ No user configured."
 
-    from datetime import timedelta
-    first = today.replace(day=1)
-    next_month = (first + timedelta(days=32)).replace(day=1)
-    last = next_month - timedelta(days=1)
+    from app.services import billing_cycle
+    first, last = billing_cycle.month_bounds(today)
 
     with get_session() as session:
         expenses = tx_service.search_transactions(

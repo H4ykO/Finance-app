@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.database.models import Category, Transaction
 from app.services.transaction_service import sum_expenses_in_period
+from app.services import billing_cycle
 
 
 # ---------------------------------------------------------------------------
@@ -60,9 +61,8 @@ class MonthlyPoint:
 # Helpers de período
 # ---------------------------------------------------------------------------
 def _month_bounds(reference: date) -> tuple[date, date]:
-    first = reference.replace(day=1)
-    next_month = (first + timedelta(days=32)).replace(day=1)
-    return first, next_month - timedelta(days=1)
+    """Limites do mês financeiro (ciclo de fatura) — ver billing_cycle."""
+    return billing_cycle.month_bounds(reference)
 
 
 def period_bounds(kind: str, reference: date) -> tuple[date, date]:

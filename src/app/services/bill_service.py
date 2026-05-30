@@ -22,17 +22,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database.models import Bill, Transaction
+from app.services import billing_cycle
 from app.services.categorizer import guess_category_name
 from app.database.models import Category
 
 
 def _month_bounds(reference: date) -> tuple[date, date]:
-    """Primeiro e último dia do mês de `reference`."""
-    first = reference.replace(day=1)
-    # Vai para o primeiro dia do mês seguinte e volta um dia
-    next_month = first + relativedelta(months=1)
-    last = next_month - relativedelta(days=1)
-    return first, last
+    """Limites do mês financeiro (ciclo de fatura) — ver billing_cycle."""
+    return billing_cycle.month_bounds(reference)
 
 
 def list_bills(
