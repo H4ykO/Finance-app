@@ -127,12 +127,28 @@ class HistoryView:
             height=42,
         )
 
+        export_btn = ft.ElevatedButton(
+            content=ft.Row(
+                [ft.Icon(ft.Icons.DOWNLOAD_OUTLINED, size=18), ft.Text("Export CSV")],
+                spacing=Spacing.SM, tight=True,
+            ),
+            on_click=lambda e: self._open_export_dialog(),
+            style=ft.ButtonStyle(
+                bgcolor=Colors.BG_CARD,
+                color=Colors.TEXT_PRIMARY,
+                shape=ft.RoundedRectangleBorder(radius=Radius.MD),
+                side=ft.BorderSide(1, Colors.BORDER),
+            ),
+            height=42,
+        )
+
         return ft.Row(
             [
                 ft.Text("History", size=Font.SIZE_TITLE, weight=Font.BOLD,
                         color=Colors.TEXT_PRIMARY),
                 ft.Container(expand=True),
                 import_btn,
+                export_btn,
                 add_btn,
             ],
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -321,6 +337,88 @@ class HistoryView:
     # -----------------------------------------------------------------------
     # Importação de CSV
     # -----------------------------------------------------------------------
+    def _open_export_dialog(self):
+        """Diálogo para exportar as transações de um mês financeiro para CSV."""
+        from app.services import billing_cycle
+
+        # Mês selecionado para exportar (começa no mês financeiro atual)
+        export_month = billing_cycle.financial_month_of(date.today())
+        month_label = ft.Text(export_month.strftime("%B %Y"),
+                              size=Font.SIZE_BODY, weight=Font.SEMIBOLD,
+                              color=Colors.TEXT_PRIMARY)
+        info_text = ft.Text("", size=Font.SIZE_SMALL, color=Colors.TEXT_SECONDARY)
+
+        def change(delta):
+            nonlocal export_month
+            export_month = billing_cycle.add_months(export_month, delta)
+            month_label.value = export_month.strftime("%B %Y")
+            month_label.update()
+
+        def do_export(e):
+            # Gera o conteúdo CSV do mês escolhido
+            with get_session() as s:
+                csv_text = tx_service.export_month_to_csv(
+                    s, self.user.id, export_month, self.cat_name_by_id,
+                )
+            # Grava em ~/Downloads com nome contendo o mês
+            from pathlib import Path
+            downloads = Path.home() / "Downloads"
+            downloads.mkdir(parents=True, exist_ok=True)
+            filename = f"finance_export_{export_month.strftime('%Y-%m')}.csv"
+            filepath = downloads / filename
+            try:
+                filepath.write_text(csv_text, encoding="utf-8")
+            except Exception as ex:
+                info_text.value = f"Error saving file: {ex}"
+                info_text.color = Colors.DANGER
+                info_text.update()
+                return
+
+            self.page.close(dialog)
+            # Feedback claro de onde o arquivo foi salvo
+            n_lines = max(0, csv_text.count("\n") - 1)  # menos o cabeçalho
+            self.status_text.value = (
+                f"Exported {n_lines} transaction(s) to ~/Downloads/{filename}"
+            )
+            self.status_text.color = Colors.SUCCESS
+            self.status_text.update()
+
+        selector = ft.Row(
+            [
+                ft.IconButton(icon=ft.Icons.CHEVRON_LEFT, icon_color=Colors.TEXT_PRIMARY,
+                              on_click=lambda e: change(-1)),
+                ft.Container(content=month_label,
+                            padding=ft.padding.symmetric(horizontal=Spacing.MD)),
+                ft.IconButton(icon=ft.Icons.CHEVRON_RIGHT, icon_color=Colors.TEXT_PRIMARY,
+                              on_click=lambda e: change(1)),
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+        )
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Export to CSV", size=Font.SIZE_LARGE, weight=Font.BOLD),
+            content=ft.Container(
+                content=ft.Column([
+                    ft.Text("Choose the month to export. The file will be saved "
+                            "to your Downloads folder.",
+                            size=Font.SIZE_SMALL, color=Colors.TEXT_SECONDARY),
+                    ft.Container(height=Spacing.SM),
+                    selector,
+                    info_text,
+                ], tight=True, spacing=Spacing.SM, width=360),
+            ),
+            actions=[
+                ft.TextButton(content=ft.Text("Cancel", color=Colors.TEXT_SECONDARY),
+                              on_click=lambda e: self.page.close(dialog)),
+                ft.TextButton(content=ft.Text("Export", color=Colors.ACCENT,
+                              weight=Font.SEMIBOLD), on_click=do_export),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+            shape=ft.RoundedRectangleBorder(radius=Radius.LG),
+        )
+        self.page.open(dialog)
+
     def _on_file_picked(self, e: ft.FilePickerResultEvent):
         """Callback do FilePicker quando o usuário escolhe um arquivo."""
         if not e.files:

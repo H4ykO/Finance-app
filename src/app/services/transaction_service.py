@@ -299,3 +299,50 @@ def recategorize_similar(
         tx.category_id = category_id
     session.commit()
     return len(rows)
+
+
+def export_month_to_csv(
+    session: Session,
+    user_id: int,
+    reference: date,
+    category_names: dict,
+) -> str:
+    """
+    Gera o conteúdo CSV das transações do MÊS FINANCEIRO de `reference`.
+
+    Respeita o ciclo de fatura (ver billing_cycle). Colunas:
+    date, title, amount, kind, category.
+
+    `category_names` é um dict {category_id: nome} para resolver o nome
+    da categoria sem novas queries.
+
+    Retorna o texto do CSV (quem chama grava em arquivo).
+    """
+    import csv
+    import io
+    from app.services import billing_cycle
+
+    start, end = billing_cycle.month_bounds(reference)
+    stmt = (
+        select(Transaction)
+        .where(
+            Transaction.user_id == user_id,
+            Transaction.occurred_at >= start,
+            Transaction.occurred_at <= end,
+        )
+        .order_by(Transaction.occurred_at.asc(), Transaction.id.asc())
+    )
+    rows = list(session.scalars(stmt).all())
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(["date", "title", "amount", "kind", "category"])
+    for tx in rows:
+        writer.writerow([
+            tx.occurred_at.strftime("%Y-%m-%d"),
+            tx.description,
+            f"{tx.amount:.2f}",
+            tx.kind,
+            category_names.get(tx.category_id, ""),
+        ])
+    return buffer.getvalue()
