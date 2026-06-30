@@ -69,18 +69,22 @@ def build_monthly_expenses_chart(
             ),
         )
 
-    # Pontos no formato que o Flet espera
+    # Pontos no formato que o Flet espera.
+    # IMPORTANTE: o eixo X usa a POSIÇÃO sequencial (0, 1, 2, ...) na ordem
+    # cronológica dos dados, NÃO o dia do mês. Com o ciclo de fatura
+    # (ex: 30, 31, 1, 2, ...), usar o dia do mês embaralharia a linha
+    # (ela saltaria do dia 31 de volta ao dia 1). A posição sequencial
+    # mantém a linha em ordem temporal correta.
     points = [
-        ft.LineChartDataPoint(x=d.day, y=float(total))
-        for d, total in data
+        ft.LineChartDataPoint(x=i, y=float(total))
+        for i, (_, total) in enumerate(data)
     ]
 
-    # Faixas dos eixos — calculamos a partir dos próprios dados
-    # para que o gráfico se ajuste bem ao range existente
+    # Faixas dos eixos
     min_y = 0.0
     max_y = max(float(total) for _, total in data) * 1.15  # 15% de folga no topo
-    min_x = min(d.day for d, _ in data)
-    max_x = max(d.day for d, _ in data)
+    min_x = 0
+    max_x = len(data) - 1 if len(data) > 1 else 1
 
     # Série principal — linha preta com área preenchida abaixo
     series = ft.LineChartData(
@@ -159,8 +163,10 @@ def _y_axis_labels(min_y: float, max_y: float, steps: int = 5) -> list[ft.ChartA
 
 def _x_axis_labels(data: list[tuple[date, Decimal]]) -> list[ft.ChartAxisLabel]:
     """
-    Labels do eixo X. Se temos muitos dias, mostramos só alguns
-    para não poluir.
+    Labels do eixo X. O `value` é a POSIÇÃO sequencial (para casar com os
+    pontos, que usam índice), mas o texto mostrado é o DIA do mês — assim
+    a linha fica em ordem cronológica e os rótulos continuam legíveis.
+    Se há muitos dias, mostramos só alguns para não poluir.
     """
     if not data:
         return []
@@ -173,9 +179,9 @@ def _x_axis_labels(data: list[tuple[date, Decimal]]) -> list[ft.ChartAxisLabel]:
         d = days[i]
         labels.append(
             ft.ChartAxisLabel(
-                value=d.day,
+                value=i,  # posição sequencial (casa com os pontos)
                 label=ft.Text(
-                    str(d.day),
+                    str(d.day),  # mas mostra o dia do mês
                     size=Font.SIZE_SMALL,
                     color=Colors.TEXT_TERTIARY,
                 ),

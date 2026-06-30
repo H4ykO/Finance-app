@@ -528,10 +528,28 @@ class HistoryView:
     # -----------------------------------------------------------------------
     def _open_edit_dialog(self, rd: dict):
         """
-        Edita a categoria de uma transação. Com o checkbox marcado,
-        aplica a todas as transações com a mesma descrição E cria uma
-        regra para categorizar as próximas automaticamente.
+        Edita uma transação: nome (descrição), valor e categoria.
+        Com o checkbox marcado, aplica a categoria a todas as transações
+        com a mesma descrição E cria uma regra para as próximas.
         """
+        # Campo de descrição (nome da compra)
+        desc_field = ft.TextField(
+            label="Description",
+            value=rd["description"],
+            border_color=Colors.BORDER,
+            focused_border_color=Colors.ACCENT,
+        )
+
+        # Campo de valor
+        amount_field = ft.TextField(
+            label="Amount",
+            value=f"{rd['amount']:.2f}",
+            prefix_text="R$ ",
+            border_color=Colors.BORDER,
+            focused_border_color=Colors.ACCENT,
+            keyboard_type=ft.KeyboardType.NUMBER,
+        )
+
         # Dropdown de categorias (inclui "no category")
         cat_options = [ft.dropdown.Option(key="", text="(no category)")]
         for c in self.categories:
@@ -552,49 +570,67 @@ class HistoryView:
         )
 
         make_default = ft.Checkbox(
-            label="Apply to all with this description and remember for next time",
-            value=True,
+            label="Apply category to all with this description and remember",
+            value=False,
             active_color=Colors.ACCENT,
         )
 
+        error_text = ft.Text("", color=Colors.DANGER, size=Font.SIZE_SMALL, visible=False)
+
         def handle_save(e):
+            # Valida descrição
+            new_desc = (desc_field.value or "").strip()
+            if not new_desc:
+                error_text.value = "Description can't be empty."
+                error_text.visible = True
+                error_text.update()
+                return
+            # Valida valor
+            new_amount = self._parse_amount(amount_field.value)
+            if new_amount is None:
+                error_text.value = "Invalid amount."
+                error_text.visible = True
+                error_text.update()
+                return
+
             new_cat_id = int(cat_dropdown.value) if cat_dropdown.value else None
 
             with get_session() as s:
+                # Sempre atualiza nome, valor e categoria desta transação
+                tx_service.update_transaction(
+                    s, rd["id"], self.user.id,
+                    description=new_desc,
+                    amount=new_amount,
+                    category_id=new_cat_id,
+                )
+                # Se marcou, aplica a categoria às parecidas + cria regra
                 if make_default.value:
-                    # Aplica a todas as parecidas
                     tx_service.recategorize_similar(
-                        s, self.user.id, rd["description"], new_cat_id
+                        s, self.user.id, new_desc, new_cat_id
                     )
-                    # Cria uma regra para as próximas (se escolheu uma categoria)
                     if new_cat_id is not None:
-                        # Evita duplicar regra idêntica
                         existing = [
                             r for r in cat_service.list_rules(s, self.user.id)
-                            if r.pattern.upper() == rd["description"].strip().upper()
+                            if r.pattern.upper() == new_desc.upper()
                         ]
                         if not existing:
                             cat_service.create_rule(
-                                s, self.user.id, rd["description"].strip(), new_cat_id
+                                s, self.user.id, new_desc, new_cat_id
                             )
-                else:
-                    # Só esta transação
-                    tx_service.update_transaction(
-                        s, rd["id"], self.user.id, category_id=new_cat_id
-                    )
 
             self.page.close(dialog)
             self._reload_table()
 
         dialog = ft.AlertDialog(
             modal=True,
-            title=ft.Text("Edit category", size=Font.SIZE_LARGE, weight=Font.BOLD),
+            title=ft.Text("Edit transaction", size=Font.SIZE_LARGE, weight=Font.BOLD),
             content=ft.Container(
                 content=ft.Column([
-                    ft.Text(f"\"{rd['description']}\"", size=Font.SIZE_BODY,
-                            weight=Font.MEDIUM, color=Colors.TEXT_PRIMARY),
+                    desc_field,
+                    amount_field,
                     cat_dropdown,
                     make_default,
+                    error_text,
                 ], spacing=Spacing.MD, tight=True, width=400),
                 padding=ft.padding.only(top=Spacing.SM),
             ),
