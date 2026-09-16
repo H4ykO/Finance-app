@@ -286,12 +286,14 @@ def build_weekly_expenses_chart(
     return _chart_card("Weekly Expenses", chart, height=380)
 
 
-def build_category_pie_chart(slices, title: str = "Spending by category"):
+def build_category_bar_chart(slices, title: str = "Spending by category"):
     """
-    Gráfico de pizza dos gastos por categoria.
+    Gráfico de BARRAS dos gastos por categoria (antes era pizza).
 
-    `slices` é uma lista de analytics_service.CategorySlice. Cada fatia
-    usa a cor da categoria. Ao lado, uma legenda com nome, valor e %.
+    `slices` é uma lista de analytics_service.CategorySlice. Uma barra
+    por categoria, colorida com a cor da categoria, ordenada da maior
+    para a menor. Ao lado, uma legenda com nome, valor e % — igual à
+    pizza anterior, para não perder informação.
 
     Se não houver gastos, mostra um aviso amigável.
     """
@@ -308,27 +310,61 @@ def build_category_pie_chart(slices, title: str = "Spending by category"):
             ),
         )
 
-    # Seções da pizza
-    sections = []
-    for sl in slices:
-        sections.append(
-            ft.PieChartSection(
-                value=float(sl.total),
-                color=sl.color,
-                radius=70,
-                # Mostra a % dentro da fatia só se for grande o suficiente
-                title=f"{sl.percent:.0f}%" if sl.percent >= 8 else "",
-                title_style=ft.TextStyle(size=12, color=Colors.TEXT_ON_DARK,
-                                         weight=Font.BOLD),
+    # Já ordenado do serviço (maior % primeiro), mas garantimos aqui
+    ordered = sorted(slices, key=lambda sl: sl.total, reverse=True)
+
+    # Uma barra por categoria
+    groups = []
+    for i, sl in enumerate(ordered):
+        groups.append(
+            ft.BarChartGroup(
+                x=i,
+                bar_rods=[
+                    ft.BarChartRod(
+                        from_y=0,
+                        to_y=float(sl.total),
+                        width=28,
+                        color=sl.color,
+                        border_radius=Radius.SM,
+                        tooltip=f"{sl.category_name}: {format_brl(sl.total)}",
+                    )
+                ],
             )
         )
 
-    pie = ft.PieChart(sections=sections, sections_space=2, center_space_radius=35,
-                      expand=True)
+    max_y = max(float(sl.total) for sl in ordered) * 1.15
 
-    # Legenda ao lado
+    # Labels do eixo X: nome da categoria (abreviado se longo)
+    x_labels = []
+    for i, sl in enumerate(ordered):
+        short = sl.category_name if len(sl.category_name) <= 8 else sl.category_name[:7] + "…"
+        x_labels.append(
+            ft.ChartAxisLabel(
+                value=i,
+                label=ft.Text(short, size=Font.SIZE_TINY, color=Colors.TEXT_TERTIARY),
+            )
+        )
+
+    chart = ft.BarChart(
+        bar_groups=groups,
+        horizontal_grid_lines=ft.ChartGridLines(
+            interval=max_y / 4 if max_y > 0 else 1,
+            color=Colors.DIVIDER,
+            width=1,
+        ),
+        left_axis=ft.ChartAxis(labels_size=50, labels=_y_axis_labels(0, max_y, steps=4)),
+        bottom_axis=ft.ChartAxis(labels_size=36, labels=x_labels),
+        border=ft.border.all(0, "transparent"),
+        max_y=max_y,
+        min_y=0,
+        expand=True,
+        animate=1000,
+        groups_space=16,
+    )
+
+    # Legenda ao lado (mesma info que a pizza tinha: nome, valor, %)
     legend_rows = []
-    for sl in slices:
+    for sl in ordered:
         legend_rows.append(
             ft.Row([
                 ft.Container(width=12, height=12, bgcolor=sl.color, border_radius=Radius.PILL),
@@ -346,7 +382,7 @@ def build_category_pie_chart(slices, title: str = "Spending by category"):
 
     content = ft.Row(
         [
-            ft.Container(content=pie, expand=3),
+            ft.Container(content=chart, expand=3),
             ft.Container(content=legend, expand=2,
                          padding=ft.padding.only(left=Spacing.LG)),
         ],

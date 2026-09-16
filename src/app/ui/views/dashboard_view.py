@@ -63,22 +63,16 @@ class DashboardView:
                 build_stat_card(
                     label=data.available.label,
                     amount=data.available.amount,
-                    variation_percent=data.available.variation_percent,
-                    positive_is_good=data.available.variation_is_positive_good,
                     hidden=hidden,
                 ),
                 build_stat_card(
                     label=data.bills.label,
                     amount=data.bills.amount,
-                    variation_percent=data.bills.variation_percent,
-                    positive_is_good=data.bills.variation_is_positive_good,
                     hidden=hidden,
                 ),
                 build_stat_card(
                     label=data.income.label,
                     amount=data.income.amount,
-                    variation_percent=data.income.variation_percent,
-                    positive_is_good=data.income.variation_is_positive_good,
                     on_edit=self._open_income_dialog,
                     hidden=hidden,
                 ),

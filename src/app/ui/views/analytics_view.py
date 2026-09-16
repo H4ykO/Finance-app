@@ -23,7 +23,7 @@ from app.database.connection import get_session
 from app.database.models import User
 from app.services import analytics_service as an
 from app.ui.components.charts import (
-    build_category_pie_chart,
+    build_category_bar_chart,
     build_monthly_comparison_chart,
 )
 from app.ui.theme import Colors, Font, Radius, Spacing, format_brl
@@ -79,7 +79,7 @@ class AnalyticsView:
             comparison = an.compare_expenses(s, self.user.id, kind, self.today)
 
         summary = self._summary_row(kind, comparison)
-        pie = build_category_pie_chart(
+        bar_chart = build_category_bar_chart(
             slices, title=f"Spending by category ({PERIOD_LABELS[kind]})"
         )
 
@@ -87,7 +87,7 @@ class AnalyticsView:
             content=ft.Column([
                 ft.Container(height=Spacing.MD),
                 summary,
-                pie,
+                bar_chart,
             ], spacing=Spacing.MD, scroll=ft.ScrollMode.AUTO),
             padding=ft.padding.only(top=Spacing.SM),
         )
